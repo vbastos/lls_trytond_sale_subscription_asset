@@ -8,7 +8,6 @@ import re
 from configparser import ConfigParser
 from setuptools import setup, find_packages
 
-
 def read(fname):
     return io.open(
         os.path.join(os.path.dirname(__file__), fname),
@@ -35,7 +34,7 @@ version = info.get('version', '0.0.1')
 major_version, minor_version, _ = version.split('.', 2)
 major_version = int(major_version)
 minor_version = int(minor_version)
-name = 'trytond_sale_subscription_asset'
+name = 'lls_trytond_sale_subscription_asset'
 
 download_url = 'http://downloads.tryton.org/%s.%s/' % (
     major_version, minor_version)
@@ -58,11 +57,11 @@ if minor_version % 2:
 
 setup(name=name,
     version=version,
-    description='A module to handle asset in the sale subscriptions',
+    description='A module to handle asset in the sale subscriptions.',
     long_description=read('README'),
-    author='Tryton',
-    author_email='issue_tracker@tryton.org',
-    url='http://www.tryton.org/',
+    author='Vincent Bastos',
+    author_email='vincentbastos@gmail.com',
+    url='http://www.vbastos.id.au/',
     download_url=download_url,
     keywords='',
     package_dir={'trytond.modules.sale_subscription_asset': '.'},
