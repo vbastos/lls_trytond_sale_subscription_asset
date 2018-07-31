@@ -47,6 +47,14 @@ class SubscriptionServiceStockLot(ModelSQL):
 class Subscription(metaclass=PoolMeta):
     __name__ = 'sale.subscription'
 
+    lines = fields.One2Many(
+        'sale.subscription.line', 'subscription', "Lines",
+        states={
+            'readonly': ((Eval('state') != 'draft')
+                | ~Eval('start_date')),
+            },
+        depends=['state'])
+
     @classmethod
     @ModelView.button
     @Workflow.transition('canceled')
@@ -73,6 +81,35 @@ class Subscription(metaclass=PoolMeta):
 class SubscriptionLine(metaclass=PoolMeta):
     __name__ = 'sale.subscription.line'
 
+    start_date = fields.Date(
+        "Start Date", required=True,
+        domain=[
+            ('start_date', '>=', Eval('subscription_start_date')),
+            ],
+        states={
+            'readonly': ((Eval('subscription_state') != 'draft')
+                | Eval('consumed')),
+            },
+        depends=['subscription_start_date', 'subscription_state', 'consumed'])
+    end_date = fields.Date(
+        "End Date",
+        domain=['OR', [
+                ('end_date', '>=', Eval('start_date')),
+                If(Bool(Eval('subscription_end_date')),
+                    ('end_date', '<=', Eval('subscription_end_date')),
+                    ()),
+                If(Bool(Eval('next_consumption_date')),
+                    ('end_date', '>=', Eval('next_consumption_date')),
+                    ()),
+                ],
+            ('end_date', '=', None),
+            ],
+        states={
+            'readonly': ((Eval('subscription_state') != 'draft')
+                | (~Eval('next_consumption_date') & Eval('consumed'))),
+            },
+        depends=['subscription_end_date', 'start_date',
+            'next_consumption_date', 'subscription_state', 'consumed'])
     asset_lot = fields.Many2One('stock.lot', "Asset Lot",
         domain=[
             ('subscription_services', '=', Eval('service')),
@@ -105,6 +142,45 @@ class SubscriptionLine(metaclass=PoolMeta):
                     'The lines "%(line1)s" and "%(line2)s" '
                     'for the same lot overlap.'),
                 })
+
+    @fields.depends('subscription', 'start_date', 'end_date',
+        '_parent_subscription.start_date', '_parent_subscription.end_date')
+    def on_change_subscription(self):
+        if self.subscription:
+            if not self.start_date:
+                self.start_date = self.subscription.start_date
+            if not self.end_date:
+                self.end_date = self.subscription.end_date
+
+    def _get_context_sale_price(self):
+        context = {}
+        if getattr(self, 'subscription', None):
+            if getattr(self.subscription, 'currency', None):
+                context['currency'] = self.subscription.currency.id
+            if getattr(self.subscription, 'party', None):
+                context['customer'] = self.subscription.party.id
+            if getattr(self.subscription, 'start_date'):
+                context['sale_date'] = self.subscription.start_date
+        if self.unit:
+            context['uom'] = self.unit.id
+        elif self.service:
+            context['uom'] = self.service.sale_uom.id
+        # TODO tax
+        return context
+
+    def compute_next_consumption_date(self):
+        if not self.consumption_recurrence:
+            return None
+        date = self.next_consumption_date or self.start_date
+        rruleset = self.consumption_recurrence.rruleset(self.start_date)
+        dt = datetime.datetime.combine(date, datetime.time())
+        inc = (self.start_date == date) and not self.next_consumption_date
+        next_date = rruleset.after(dt, inc=inc).date()
+        for end_date in [self.end_date, self.subscription.end_date]:
+            if end_date:
+                if next_date > end_date:
+                    return None
+        return next_date
 
     @fields.depends('service')
     def on_change_with_asset_lot_required(self, name=None):
