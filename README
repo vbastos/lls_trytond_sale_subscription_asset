@@ -1,8 +1,8 @@
 trytond_sale_subscription_asset
 ===============================
 
-This is a backport of the module foundation module
-sale_subscription_asset module of the Tryton application platform.
+This is a backport of the foundation module sale_subscription_asset
+of the Tryton application platform.
 
 Please ensure that you use releases as other versions are likely to
 not work.
